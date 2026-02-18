@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebP to JPEG - FreeConvert</title>
+  <meta name="description" content="Convert HEIC, AVIF, PNG, WebP, and JPEG in your browser. No signup. Private, fast, and secure." />
+  <meta property="og:title" content="WebP to JPEG" />
+  <meta property="og:description" content="Convert HEIC, AVIF, PNG, WebP, and JPEG in your browser. No signup. Private, fast, and secure." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/styles.css" />
+  <link rel="icon" href="/assets/logo.svg" type="image/svg+xml" />
+</head>
+<body data-default-input="auto" data-default-output="jpeg" data-page-title="WebP to JPEG">
+  <div class="page">
+    <header class="site-header">
+      <div class="brand">
+        <img class="logo" src="/assets/logo.svg" alt="FreeConvert" />
+        <div class="brand-text">FreeConvert</div>
+      </div>
+      <nav class="nav-links">
+        <a href="/" class="active">Convert</a>
+        <a href="#">Compress</a>
+        <a href="#">Tools</a>
+      </nav>
+      <div class="header-actions">
+        <button class="ghost">Search</button>
+        <button class="primary">Get Started</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="ad-column left">
+        <div class="ad-slot" aria-hidden="true"></div>
+        <div class="ad-slot" aria-hidden="true"></div>
+      </aside>
+
+      <section class="content">
+        <div class="hero">
+          <p class="eyebrow">In-browser - Private - No Signup</p>
+          <h1>WebP to JPEG</h1>
+          <p class="sub">Easily convert to WebP to JPEG. Your data never leaves your browser.</p>
+        </div>
+
+        <div class="converter-card">
+          <div class="drop-zone" id="dropZone">
+            <input id="fileInput" type="file" accept="image/*,.heic,.heif,.avif,.webp,.png,.jpg,.jpeg" multiple />
+            <div class="drop-inner">
+              <div class="drop-title">Drag & drop files here</div>
+              <div class="drop-sub">or click to choose files</div>
+              <button class="primary" id="chooseBtn">Choose Files</button>
+            </div>
+          </div>
+
+          <div class="controls">
+            <div class="control">
+              <label for="outputFormat">Convert to</label>
+              <select id="outputFormat"></select>
+            </div>
+            <div class="control">
+              <label for="sizePreset">Size target</label>
+              <select id="sizePreset">
+                <option value="same">Same size (best quality)</option>
+                <option value="large">Large (75% of original)</option>
+                <option value="medium">Medium (50% of original)</option>
+                <option value="small">Small (25% of original)</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div class="control custom" id="customSizeWrap">
+              <label for="customSize">Custom target (KB)</label>
+              <input id="customSize" type="number" min="10" step="10" placeholder="e.g. 350" />
+            </div>
+            <div class="control">
+              <label for="qualityHint">Quality mode</label>
+              <div class="pill" id="qualityHint">Best effort to hit target size</div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="primary" id="convertBtn">Convert Now</button>
+            <button class="ghost" id="clearBtn">Clear</button>
+          </div>
+
+          <div class="status" id="status"></div>
+          <div class="note" id="supportNote"></div>
+
+          <div class="file-list" id="fileList"></div>
+        </div>
+
+        <div class="feature-grid">
+          <div class="feature">
+            <h3>Privacy Guaranteed</h3>
+            <p>Your files never leave your device. Everything runs locally in your browser.</p>
+          </div>
+          <div class="feature">
+            <h3>Convert Fast & Easy</h3>
+            <p>Drag, drop, pick a format, and export. No signup, no uploads.</p>
+          </div>
+          <div class="feature">
+            <h3>Secure Data</h3>
+            <p>Modern browser APIs keep conversions private and secure.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="ad-column right">
+        <div class="ad-slot" aria-hidden="true"></div>
+        <div class="ad-slot" aria-hidden="true"></div>
+      </aside>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-grid">
+        <div>
+          <div class="brand footer-brand">
+            <img class="logo" src="/assets/logo.svg" alt="FreeConvert" />
+            <div class="brand-text">FreeConvert</div>
+          </div>
+          <p>Minimal, fast, private conversions. Built for scale.</p>
+        </div>
+        <div>
+          <h4>Image Converters</h4>
+          <a href="/heic-to-jpeg/">HEIC to JPEG</a>
+          <a href="/avif-to-jpeg/">AVIF to JPEG</a>
+          <a href="/png-to-jpeg/">PNG to JPEG</a>
+          <a href="/webp-to-jpeg/">WebP to JPEG</a>
+        </div>
+        <div>
+          <h4>More</h4>
+          <a href="/jpeg-to-png/">JPEG to PNG</a>
+          <a href="/jpeg-to-webp/">JPEG to WebP</a>
+          <a href="/jpeg-to-avif/">JPEG to AVIF</a>
+          <a href="#">About</a>
+        </div>
+        <div>
+          <h4>Policies</h4>
+          <a href="#">Privacy</a>
+          <a href="#">Terms</a>
+          <a href="#">Contact</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>(c) 2026 FreeConvert. All rights reserved.</span>
+        <span>Built for GitHub Pages.</span>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/assets/app.js"></script>
+</body>
+</html>
