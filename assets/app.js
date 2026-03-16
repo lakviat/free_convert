@@ -1,6 +1,7 @@
 const state = {
   files: [],
   outputs: [],
+  isConverting: false,
 };
 
 const outputFormats = [
@@ -30,6 +31,16 @@ const support = {
   webp: canEncode("image/webp"),
   avif: canEncode("image/avif"),
   heic: false,
+};
+
+const inputAliases = {
+  jpg: "jpeg",
+  jpeg: "jpeg",
+  png: "png",
+  webp: "webp",
+  avif: "avif",
+  heic: "heic",
+  heif: "heic",
 };
 
 function canEncode(type) {
@@ -68,8 +79,27 @@ function updateStatus(message, isError = false) {
   elements.status.style.color = isError ? "#c03" : "";
 }
 
+function revokeOutputUrls() {
+  state.outputs.forEach((item) => {
+    if (item.url) {
+      URL.revokeObjectURL(item.url);
+    }
+  });
+}
+
+function setBusy(isBusy) {
+  state.isConverting = isBusy;
+  elements.convertBtn.disabled = isBusy;
+  elements.clearBtn.disabled = isBusy;
+  elements.chooseBtn.disabled = isBusy;
+}
+
 function updateFileList() {
   elements.fileList.innerHTML = "";
+  if (!state.outputs.length) {
+    return;
+  }
+
   state.outputs.forEach((item) => {
     const row = document.createElement("div");
     row.className = "file-item";
@@ -80,8 +110,8 @@ function updateFileList() {
         <span>${formatBytes(item.inputSize)} -> ${formatBytes(item.outputSize)}</span>
       </div>
       <div class="actions">
-        <a class="download" href="${item.url}" download="${item.downloadName}">
-          <button class="primary">Download</button>
+        <a class="download button primary" href="${item.url}" download="${item.downloadName}">
+          Download
         </a>
       </div>
     `;
@@ -96,6 +126,69 @@ function setSupportNote() {
   if (!support.avif) notes.push("AVIF output is not supported in this browser.");
   notes.push("HEIC output is not available in-browser yet.");
   elements.supportNote.textContent = notes.join(' ');
+}
+
+function guessInputFormat(file) {
+  const fileName = file.name.toLowerCase();
+  const extensionMatch = fileName.match(/\.([a-z0-9]+)$/);
+  const extension = extensionMatch ? extensionMatch[1] : "";
+  const mime = (file.type || "").toLowerCase();
+
+  if (mime.includes("heic") || mime.includes("heif")) return "heic";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return "jpeg";
+  if (mime.includes("png")) return "png";
+  if (mime.includes("webp")) return "webp";
+  if (mime.includes("avif")) return "avif";
+  return inputAliases[extension] || "image";
+}
+
+function getDetectedInputTypes(files) {
+  return [...new Set(files.map(guessInputFormat))];
+}
+
+function findSelectableOutput(preferredType) {
+  const options = [...elements.outputFormat.options];
+  return options.find((option) => option.value === preferredType && !option.disabled);
+}
+
+function pickSuggestedOutput(types) {
+  const defaultOutput = document.body.dataset.defaultOutput || "jpeg";
+  const [firstType] = types;
+
+  if (findSelectableOutput(defaultOutput) && defaultOutput !== firstType) {
+    return defaultOutput;
+  }
+
+  const firstDifferent = [...elements.outputFormat.options].find(
+    (option) => !option.disabled && option.value !== firstType
+  );
+  return firstDifferent ? firstDifferent.value : elements.outputFormat.value;
+}
+
+function syncOutputForFiles(files) {
+  if (!files.length) {
+    syncDefaults();
+    setSupportNote();
+    return;
+  }
+
+  const detectedTypes = getDetectedInputTypes(files);
+  const suggestedOutput = pickSuggestedOutput(detectedTypes);
+  if (suggestedOutput) {
+    elements.outputFormat.value = suggestedOutput;
+  }
+
+  const labels = detectedTypes.map((type) => type.toUpperCase());
+  const notes = [];
+  if (labels.length === 1) {
+    notes.push(`Detected input: ${labels[0]}.`);
+  } else {
+    notes.push(`Detected inputs: ${labels.join(", ")}.`);
+  }
+  if (!support.webp) notes.push("WebP output is not supported in this browser.");
+  if (!support.avif) notes.push("AVIF output is not supported in this browser.");
+  notes.push("HEIC output is not available in-browser yet.");
+  elements.supportNote.textContent = notes.join(" ");
 }
 
 function refreshOutputOptions() {
@@ -150,9 +243,11 @@ function attachDropHandlers() {
 }
 
 function setFiles(files) {
+  revokeOutputUrls();
   state.files = files;
   state.outputs = [];
   updateFileList();
+  syncOutputForFiles(files);
   if (!files.length) {
     updateStatus("No files selected.");
     return;
@@ -180,12 +275,48 @@ async function decodeImage(file) {
   const isHeic = file.type.includes("heic") || fileName.endsWith(".heic") || fileName.endsWith(".heif");
 
   if (isHeic) {
-    await ensureHeic2Any();
-    const blob = await window.heic2any({ blob: file, toType: "image/png" });
-    return createImageBitmap(blob);
+    try {
+      await ensureHeic2Any();
+      const result = await window.heic2any({ blob: file, toType: "image/png" });
+      const blob = Array.isArray(result) ? result[0] : result;
+      if (!blob) {
+        throw new Error("Unable to decode this HEIC file in the browser.");
+      }
+      return decodeBitmapSource(blob);
+    } catch (error) {
+      const message = String(error && error.message ? error.message : error);
+      if (message.includes("ERR_LIBHEIF")) {
+        throw new Error("This HEIC file could not be decoded in the browser. Try another HEIC image or convert it on-device first.");
+      }
+      throw new Error("Unable to decode this HEIC file in the browser.");
+    }
   }
 
-  return createImageBitmap(file);
+  return decodeBitmapSource(file);
+}
+
+async function decodeBitmapSource(source) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      return await createImageBitmap(source);
+    } catch (error) {
+      // Fall back to image decoding below for browsers with partial support.
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(source);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Unable to decode the selected image."));
+      img.src = objectUrl;
+    });
+
+    return image;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 async function encodeImage(bitmap, type, quality) {
@@ -195,13 +326,34 @@ async function encodeImage(bitmap, type, quality) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(bitmap, 0, 0);
 
-  return new Promise((resolve) => {
+  const blob = await new Promise((resolve) => {
     canvas.toBlob(
       (blob) => resolve(blob),
       type,
       quality
     );
   });
+
+  if (blob) {
+    return blob;
+  }
+
+  const dataUrl = canvas.toDataURL(type, quality);
+  return dataUrlToBlob(dataUrl);
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [meta, body] = dataUrl.split(",");
+  const mimeMatch = meta.match(/data:(.*?);base64/);
+  const mime = mimeMatch ? mimeMatch[1] : "application/octet-stream";
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], { type: mime });
 }
 
 async function compressToTarget(bitmap, outputMime, targetBytes, allowQuality) {
@@ -241,6 +393,12 @@ function replaceExtension(name, newExt) {
   return `${base}.${newExt}`;
 }
 
+function buildDownloadName(name, outputType) {
+  const extension = outputType === "jpeg" ? "jpg" : outputType;
+  const convertedName = replaceExtension(name, extension);
+  return `convertjpgs_${convertedName}`;
+}
+
 async function processFile(file, outputType, targetBytes) {
   if (outputType === "heic") {
     throw new Error("HEIC output is not supported in this browser.");
@@ -252,23 +410,29 @@ async function processFile(file, outputType, targetBytes) {
   }
 
   const bitmap = await decodeImage(file);
-  const allowQuality = outputType !== "png";
-  const blob = await compressToTarget(bitmap, outputMime, targetBytes, allowQuality);
+  try {
+    const allowQuality = outputType !== "png";
+    const blob = await compressToTarget(bitmap, outputMime, targetBytes, allowQuality);
 
-  if (!blob) {
-    throw new Error("Conversion failed.");
+    if (!blob) {
+      throw new Error("Conversion failed.");
+    }
+
+    const url = URL.createObjectURL(blob);
+    return {
+      name: file.name,
+      downloadName: buildDownloadName(file.name, outputType),
+      inputType: file.type || "image",
+      outputType: outputMime,
+      inputSize: file.size,
+      outputSize: blob.size,
+      url,
+    };
+  } finally {
+    if (bitmap && typeof bitmap.close === "function") {
+      bitmap.close();
+    }
   }
-
-  const url = URL.createObjectURL(blob);
-  return {
-    name: file.name,
-    downloadName: replaceExtension(file.name, outputType === "jpeg" ? "jpg" : outputType),
-    inputType: file.type || "image",
-    outputType: outputMime,
-    inputSize: file.size,
-    outputSize: blob.size,
-    url,
-  };
 }
 
 async function convertAll() {
@@ -281,8 +445,12 @@ async function convertAll() {
   const preset = elements.sizePreset.value;
   const customKb = Number(elements.customSize.value || 0);
 
+  setBusy(true);
   updateStatus("Converting... please wait.");
+  revokeOutputUrls();
   state.outputs = [];
+  updateFileList();
+  const failures = [];
 
   for (const file of state.files) {
     try {
@@ -291,11 +459,19 @@ async function convertAll() {
       state.outputs.push(result);
       updateFileList();
     } catch (error) {
-      updateStatus(error.message || "Conversion error.", true);
+      failures.push(`${file.name}: ${error.message || "Conversion error."}`);
     }
   }
 
-  updateStatus(`Done. Converted ${state.outputs.length} file(s).`);
+  if (state.outputs.length && !failures.length) {
+    updateStatus(`Done. Converted ${state.outputs.length} file(s).`);
+  } else if (state.outputs.length) {
+    updateStatus(`Converted ${state.outputs.length} file(s). ${failures.length} failed. ${failures[0]}`, true);
+  } else {
+    updateStatus(failures[0] || "No files were converted.", true);
+  }
+
+  setBusy(false);
 }
 
 function init() {
@@ -310,10 +486,13 @@ function init() {
   elements.sizePreset.addEventListener("change", setCustomVisibility);
   elements.convertBtn.addEventListener("click", convertAll);
   elements.clearBtn.addEventListener("click", () => {
+    revokeOutputUrls();
     state.files = [];
     state.outputs = [];
     elements.fileInput.value = "";
     updateFileList();
+    syncDefaults();
+    setSupportNote();
     updateStatus("Cleared.");
   });
 
